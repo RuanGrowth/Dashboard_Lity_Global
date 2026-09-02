@@ -538,7 +538,7 @@ const CLIENT_CSV={}; /* dashboard dedicado Henrivera: lê da base compartilhada,
 /* Empresas: nome exibido + aliases para casar com a coluna "Cliente" das abas */
 const CLIENTS = {
   lity:{ name:"Lity Global", match:[
-    "lity global 01 - br","lity global 01 br","lity global 01","lity global","lity global 01 br ","lity"
+    "lity global 01 - br","lity global 01 br","lity global 01","lity global","lity global | connecting you with your world","lity global connecting you with your world","lity"
   ] },
 };
 const CLIENT_ORDER=['lity'];
@@ -676,13 +676,15 @@ const ALIASES={ date:['date','data','dia','day'], campaign:['campaign name','cam
   eng:['action post engagement','post engagement','page engagement','engajamento'],
   gender:['gender (breakdown)','gender','genero','sexo'], age:['age (breakdown)','age','idade','faixa etaria','age range'],
   cplDirect:['cost per action lead grouped (onsite conversion)','cost per action lead grouped','cost per lead','custo por lead','cost per result'],
+  purchases:['action omni purchase','action purchase','actions purchase','website purchase','purchases','compras','omni purchase','onsite conversion.purchase','offsite conversion.fb pixel purchase'],
+  revenue:['action value omni purchase','action values omni purchase','action value purchase','purchase conversion value','conversion value','conversions value','value omni purchase','purchase value','revenue','receita','valor de conversao','valor das conversoes','omni purchase value'],
   convmsg:['action messaging conversations started (onsite conversion)','action messaging conversations started','messaging conversations started','conversas por mensagem iniciadas','conversas de mensagens iniciadas','conversas iniciadas','conversas iniciadas por mensagem','onsite conversion.messaging conversation started 7d','messaging conversation started','conversas','novas conversas por mensagem'],
   thumb:['thumbnail url','thumbnail','thumb'], image:['image url','image','imagem'],
   cta:['adcreative call to action url','call to action url','cta url','adcreative cta url'], link:['link url','link'],
   vplay:['action video view','video views','video view'], v25:['video 25 percent watched actions','video 25%'],
   v50:['video 50 percent watched actions','video 50%'], v75:['video 75 percent watched actions','video 75%'],
   v95:['video 95 percent watched actions','video 95%'], v100:['video 100 percent watched actions','video 100%'] };
-const AVOID={ leads:['cost','value','per ','registration','grouped','pixel','purchase'], convmsg:['cost per','cost ','custo','cpc'],
+const AVOID={ leads:['cost','value','per ','registration','grouped','pixel','purchase'], convmsg:['cost per','cost ','custo','cpc'], purchases:['cost','custo','value','valor','per ','cpc','roas'], revenue:['cost','custo','cost per','cpc'],
   age:['page','landing','message','messaging','spend','cost','click','reach','impression','impressions','pixel','omni','lead','link','conversation','engagement','video','post','adset','account','campaign'] };
 function findCol(headers,key){ const al=ALIASES[key].map(norm), avoid=(AVOID[key]||[]).map(norm); const ok=h=>!avoid.some(a=>norm(h).includes(a));
   for(const a of al){ const i=headers.findIndex(h=>norm(h)===a&&ok(h)); if(i>=0) return headers[i]; }
@@ -895,12 +897,13 @@ function render(){ const app=document.getElementById('app');
   let crossBase=null;
   if(DC.gender&&DC.age) crossBase={rows:demo,cols:DC};
   else if(GC.gender&&GC.age) crossBase={rows:gen,cols:GC};
-  else { const cc2=resolveCols(CAMP,['date','gender','age','spend','leads','clicks','impr','reach','lpv','convmsg','cplDirect']); if(cc2.convmsg) cc2.leads=cc2.convmsg; if(cc2.gender&&cc2.age) crossBase={rows:filterByDate(CAMP,cc2.date),cols:cc2}; }
+  else { const cc2=resolveCols(CAMP,['date','gender','age','spend','leads','clicks','impr','reach','lpv','convmsg','purchases','revenue','cplDirect']); if(cc2.purchases) cc2.leads=cc2.purchases; else if(cc2.convmsg) cc2.leads=cc2.convmsg; if(cc2.gender&&cc2.age) crossBase={rows:filterByDate(CAMP,cc2.date),cols:cc2}; }
   CROSSX=crossBase?enrichDemo(crossBase.rows,crossBase.cols):[];
   const byCampaign=CC.campaign?aggregate(camp,CC,[CC.campaign]):[]; const creatives=aggregateCreatives(camp);
-  const T={spend:sumField(camp,CC.spend),leads:sumField(camp,CC.leads),clicks:sumField(camp,CC.clicks),impr:sumField(camp,CC.impr),lpv:sumField(camp,CC.lpv),reach:sumField(camp,CC.reach),eng:sumField(camp,CC.eng),convmsg:sumField(camp,CC.convmsg)};
+  const T={spend:sumField(camp,CC.spend),leads:sumField(camp,CC.leads),clicks:sumField(camp,CC.clicks),impr:sumField(camp,CC.impr),lpv:sumField(camp,CC.lpv),reach:sumField(camp,CC.reach),eng:sumField(camp,CC.eng),convmsg:sumField(camp,CC.convmsg),purchases:sumField(camp,CC.purchases),revenue:sumField(camp,CC.revenue)};
   const cpl=(T.spend!=null&&T.leads)?T.spend/T.leads:null, ctr=(T.clicks!=null&&T.impr)?T.clicks/T.impr*100:null, cpc=(T.spend!=null&&T.clicks)?T.spend/T.clicks:null, conv=(T.leads!=null&&T.lpv)?T.leads/T.lpv*100:null;
   const freq=(T.reach)?T.impr/T.reach:null, cpm=(T.impr)?T.spend/T.impr*1000:null, cpconv=(CC.convmsg&&T.convmsg)?T.spend/T.convmsg:null, convrate=(T.convmsg&&T.clicks)?T.convmsg/T.clicks*100:null;
+  const roas=(T.spend&&T.revenue!=null)?T.revenue/T.spend:null, cpa=(T.spend!=null&&T.purchases)?T.spend/T.purchases:null, aov=(T.purchases&&T.revenue!=null)?T.revenue/T.purchases:null, purchrate=(T.purchases&&T.clicks)?T.purchases/T.clicks*100:null;
   const f1=v=>(v==null||isNaN(v))?'—':v.toLocaleString('pt-BR',{maximumFractionDigits:1});
   /* KPIs em linguagem simples; ordem definida pelo OBJETIVO do cliente */
   const K={
@@ -919,14 +922,21 @@ function render(){ const app=document.getElementById('app');
     leads:{l:'Leads',v:fmtInt(T.leads),h:'conversas iniciadas por mensagem (Meta)',i:'target',ok:CC.leads},
     cpl:{l:'Custo por Lead',v:fmtBRL(cpl),h:'investimento ÷ leads',i:'tag',ok:cpl!=null},
     convrate:{l:'Taxa de Conversão',v:fmtPct(convrate!=null?convrate:conv),h:'conversas ÷ cliques',i:'convert',ok:(convrate!=null||conv!=null)},
+    revenue:{l:'Receita Gerada',v:fmtBRL(T.revenue),h:'valor das compras (conversões)',i:'money',ok:(CC.revenue&&T.revenue!=null)},
+    purchases:{l:'Compras',v:fmtInt(T.purchases),h:'total de compras no período',i:'target',ok:CC.purchases},
+    roas:{l:'ROAS',v:(roas!=null?roas.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'x':'—'),h:'receita ÷ investimento',i:'convert',ok:(roas!=null)},
+    cpa:{l:'CPA (Custo por Compra)',v:fmtBRL(cpa),h:'investimento ÷ compras',i:'tag',ok:(cpa!=null)},
+    aov:{l:'Ticket Médio',v:fmtBRL(aov),h:'receita ÷ compras',i:'tag',ok:(aov!=null)},
+    purchrate:{l:'Taxa de Conversão',v:fmtPct(purchrate),h:'compras ÷ cliques',i:'convert',ok:(purchrate!=null)},
   };
   const ORD={ branding:['reach','impr','freq','clicks','ctr','eng','cpc','cpm','spend','lpv'],
+    ecommerce:['revenue','roas','purchases','cpa','aov','spend','clicks','ctr','purchrate'],
     leads:['leads','cpl','spend','clicks','ctr','convrate','reach','impr'],
     geral:['spend','convmsg','cpconv','leads','cpl','ctr','cpc','reach','impr','clicks','eng','lpv'] };
   const prof=(typeof clientProfile==='function'?clientProfile(CURRENT_CLIENT).focus:'geral');
   const order=ORD[prof]||ORD.geral;
   let kpis=''; order.forEach(k=>{ const d=K[k]; if(d&&d.ok) kpis+=kpiCard(d.l,d.v,d.h,d.i); });
-  const tiKeys=(prof==='branding'?['reach','impr','freq','ctr','eng','clicks']:prof==='leads'?['leads','cpl','clicks','ctr','spend','reach']:['spend','convmsg','cpl','ctr','cpc','reach']);
+  const tiKeys=(prof==='branding'?['reach','impr','freq','ctr','eng','clicks']:prof==='ecommerce'?['revenue','roas','purchases','cpa','aov','spend']:prof==='leads'?['leads','cpl','clicks','ctr','spend','reach']:['spend','convmsg','cpl','ctr','cpc','reach']);
   const ti=tiKeys.map(k=>K[k]).filter(d=>d&&d.ok).map(d=>[d.i,d.l,d.v]);
   const tkItem=a=>`<div class="ticker-item"><div class="ti-ic">${ICONS[a[0]]||ICONS.dot}</div><div class="ti-tx"><div class="k">${a[1]}</div><div class="v">${a[2]}</div></div></div>`;
   const tickerHTML=ti.length?`<div class="ticker"><div class="ticker-track">${ti.map(tkItem).join('')}${ti.map(tkItem).join('')}</div></div>`:'';
@@ -1011,14 +1021,14 @@ function renderEngagement(byCampaign,camp){ const host=document.getElementById('
 let CREATIVE_SORT='leads';
 function renderCreatives(creatives){ const host=document.getElementById('top_creatives');
   if(!creatives.length){ host.innerHTML='<div class="card"><div class="empty">Colunas de anúncio/criativo não encontradas.</div></div>'; return; }
-  host.innerHTML=`<div class="cr-filters"><button class="btn" data-s="leads">Top Leads</button><button class="btn" data-s="cpl">Menor CPL</button><button class="btn" data-s="ctr">Melhor CTR</button></div><div class="cr-grid" id="cr_grid"></div>`;
+  host.innerHTML=`<div class="cr-filters"><button class="btn" data-s="leads">Top Compras</button><button class="btn" data-s="cpl">Menor CPA</button><button class="btn" data-s="ctr">Melhor CTR</button></div><div class="cr-grid" id="cr_grid"></div>`;
   const draw=()=>{ let arr=[...creatives];
     if(CREATIVE_SORT==='leads') arr.sort((a,b)=>b.leads-a.leads);
     else if(CREATIVE_SORT==='cpl') arr=arr.filter(o=>o.cpl!=null).sort((a,b)=>a.cpl-b.cpl);
     else arr=arr.filter(o=>o.ctr!=null).sort((a,b)=>b.ctr-a.ctr); arr=arr.slice(0,10);
     document.getElementById('cr_grid').innerHTML=arr.map((o,i)=>`<div class="cr-card"><div class="cr-thumb" data-key="${encodeURIComponent(o.ad+'||'+o.cr)}"><span class="cr-rank">#${i+1}</span>${imgCell([o.thumb,o.image,o.cta,o.link,o.imgaux])}</div>
       <div class="cr-body"><div class="cr-name">${o.ad||o.cr||'—'}</div><div class="cr-sub">${o.cr||''}</div>
-      <div class="cr-metrics"><div class="cr-m"><div class="k">Leads</div><div class="v">${fmtInt(o.leads)}</div></div><div class="cr-m"><div class="k">CPL</div><div class="v">${fmtBRL(o.cpl)}</div></div><div class="cr-m"><div class="k">CTR</div><div class="v">${fmtPct(o.ctr)}</div></div>
+      <div class="cr-metrics"><div class="cr-m"><div class="k">Compras</div><div class="v">${fmtInt(o.leads)}</div></div><div class="cr-m"><div class="k">CPA</div><div class="v">${fmtBRL(o.cpl)}</div></div><div class="cr-m"><div class="k">CTR</div><div class="v">${fmtPct(o.ctr)}</div></div>
       <div class="cr-m"><div class="k">Invest.</div><div class="v">${fmtBRL(o.spend)}</div></div><div class="cr-m"><div class="k">Cliques</div><div class="v">${fmtInt(o.clicks)}</div></div>${o.impr?`<div class="cr-m"><div class="k">Impr.</div><div class="v">${fmtInt(o.impr)}</div></div>`:''}</div></div></div>`).join('')||'<div class="empty">Sem criativos.</div>';
     document.querySelectorAll('#cr_grid .cr-thumb').forEach(t=>t.onclick=()=>openModal(creatives.find(o=>encodeURIComponent(o.ad+'||'+o.cr)===t.dataset.key)));
   };
@@ -1031,7 +1041,7 @@ function renderGallery(creatives){ const host=document.getElementById('gallery')
   document.querySelectorAll('#gal_grid .gal-item').forEach(t=>t.onclick=()=>openModal(creatives.find(o=>encodeURIComponent(o.ad+'||'+o.cr)===t.dataset.key))); }
 function openModal(o){ if(!o) return; document.getElementById('modalImg').innerHTML=imgCell([o.image,o.thumb,o.cta,o.link,o.imgaux]);
   document.getElementById('modalInfo').innerHTML=`<h3>${o.ad||o.cr||'Criativo'}</h3><div class="sub">${o.cr||''}</div>
-    <div class="modal-metrics"><div class="cr-m"><div class="k">Leads</div><div class="v">${fmtInt(o.leads)}</div></div><div class="cr-m"><div class="k">CPL</div><div class="v">${fmtBRL(o.cpl)}</div></div><div class="cr-m"><div class="k">CTR</div><div class="v">${fmtPct(o.ctr)}</div></div>
+    <div class="modal-metrics"><div class="cr-m"><div class="k">Compras</div><div class="v">${fmtInt(o.leads)}</div></div><div class="cr-m"><div class="k">CPA</div><div class="v">${fmtBRL(o.cpl)}</div></div><div class="cr-m"><div class="k">CTR</div><div class="v">${fmtPct(o.ctr)}</div></div>
     <div class="cr-m"><div class="k">Investimento</div><div class="v">${fmtBRL(o.spend)}</div></div><div class="cr-m"><div class="k">Cliques</div><div class="v">${fmtInt(o.clicks)}</div></div>${o.impr?`<div class="cr-m"><div class="k">Impressões</div><div class="v">${fmtInt(o.impr)}</div></div>`:''}</div>
     ${o.link?`<a class="btn" href="${o.link}" target="_blank" rel="noopener">Abrir Anúncio ↗</a>`:''}`;
   document.getElementById('modal').classList.add('open'); }
@@ -1063,12 +1073,12 @@ function renderDemographics(){ const host=document.getElementById('demo_section'
   const genCols=GENX.length?GC:DC; const hasCPL=!!(genCols.cplDirect||(genCols.spend&&genCols.leads)||DC.cplDirect||(DC.spend&&DC.leads));
   const hasLeads=!!(genCols.leads||(genCols.cplDirect&&genCols.spend)||DC.leads||(DC.cplDirect&&DC.spend)); const hasCTR=(genCols.clicks&&genCols.impr)||(DC.clicks&&DC.impr);
   host.innerHTML=`${genOn?`<h3 style="margin:0 2px 12px;font-size:13.5px">Por gênero</h3><div class="row three">
-    <div class="card panel" id="g_leads"><h3>Leads por gênero</h3><div class="cap">${hasLeads?'leads':'indisponível'}</div><div class="chart-box"><canvas id="ch_gleads"></canvas></div></div>
+    <div class="card panel" id="g_leads"><h3>Compras por gênero</h3><div class="cap">${hasLeads?'compras':'indisponível'}</div><div class="chart-box"><canvas id="ch_gleads"></canvas></div></div>
     <div class="card panel" id="g_cpl"><h3>CPL por gênero</h3><div class="cap">custo por lead</div><div class="chart-box"><canvas id="ch_gcpl"></canvas></div></div>
     <div class="card panel" id="g_ctr"><h3>CTR por gênero</h3><div class="cap">Clicks ÷ Impr.</div><div class="chart-box"><canvas id="ch_gctr"></canvas></div></div>
     <div class="card panel" id="g_reach"><h3>Alcance por gênero</h3><div class="cap">alcance</div><div class="chart-box"><canvas id="ch_greach"></canvas></div></div></div>`:''}
     ${DC.age?`<h3 style="margin:26px 2px 12px;font-size:13.5px">Por faixa etária</h3><div class="row three">
-    <div class="card panel" id="a_leads"><h3>Leads por faixa etária</h3><div class="cap">${hasLeads?'leads':'indisponível'}</div><div class="chart-box"><canvas id="ch_aleads"></canvas></div></div>
+    <div class="card panel" id="a_leads"><h3>Compras por faixa etária</h3><div class="cap">${hasLeads?'compras':'indisponível'}</div><div class="chart-box"><canvas id="ch_aleads"></canvas></div></div>
     <div class="card panel" id="a_cpl"><h3>CPL por faixa etária</h3><div class="cap">custo por lead</div><div class="chart-box"><canvas id="ch_acpl"></canvas></div></div>
     <div class="card panel" id="a_ctr"><h3>CTR por faixa etária</h3><div class="cap">Clicks ÷ Impr.</div><div class="chart-box"><canvas id="ch_actr"></canvas></div></div>
     <div class="card panel" id="a_reach"><h3>Alcance por faixa etária</h3><div class="cap">alcance</div><div class="chart-box"><canvas id="ch_areach"></canvas></div></div></div>`:''}`;
@@ -1170,15 +1180,15 @@ async function load(){ setStatus('load'); const app=document.getElementById('app
     CAMP=rowsFor('metaCamp'); GEN=rowsFor('metaGen'); DEMO=rowsFor('metaGen'); REGION.rows=rowsFor('metaReg'); REGION.cols=REGION.rows.length?regResolve(REGION.rows):{};
     buildImgAux(rowsFor('metaImg').concat(CAMP));
     if(!CAMP.length){ IMGAUX=new Map(); render(); setStatus('live','Sem dados para este cliente'); app.classList.remove('loading'); if(document.body.classList.contains('env-meta'))updateHead('meta'); return; }
-    CC=resolveCols(CAMP,['date','campaign','objective','ad','creative','spend','leads','clicks','impr','reach','lpv','eng','convmsg','vplay','v25','v50','v75','v95','v100','thumb','image','cta','link']);
-    DC=resolveCols(DEMO,['date','gender','age','spend','leads','clicks','impr','reach','lpv','convmsg','cplDirect']);
-    GC=GEN.length?resolveCols(GEN,['date','gender','age','spend','leads','clicks','impr','reach','lpv','convmsg','cplDirect']):{};
+    CC=resolveCols(CAMP,['date','campaign','objective','ad','creative','spend','leads','clicks','impr','reach','lpv','eng','convmsg','purchases','revenue','vplay','v25','v50','v75','v95','v100','thumb','image','cta','link']);
+    DC=resolveCols(DEMO,['date','gender','age','spend','leads','clicks','impr','reach','lpv','convmsg','purchases','revenue','cplDirect']);
+    GC=GEN.length?resolveCols(GEN,['date','gender','age','spend','leads','clicks','impr','reach','lpv','convmsg','purchases','revenue','cplDirect']):{};
     /* Henrivera: o "lead" é a conversa iniciada por mensagem. Aponta a coluna de leads
        para convmsg em todo o módulo (KPI, criativos, campanhas, demográfico, funil). */
-    if(CC.convmsg) CC.leads=CC.convmsg;
-    if(DC.convmsg) DC.leads=DC.convmsg;
-    if(GC.convmsg) GC.leads=GC.convmsg;
-    console.log('[Bursty] Meta · colunas detectadas →', {leads:CC.leads, convmsg:CC.convmsg, spend:CC.spend, clicks:CC.clicks, ad:CC.ad, creative:CC.creative});
+    const _prof=(typeof clientProfile==='function'?clientProfile(CURRENT_CLIENT).focus:'geral');
+    if(_prof==='ecommerce'){ if(CC.purchases) CC.leads=CC.purchases; if(DC.purchases) DC.leads=DC.purchases; if(GC.purchases) GC.leads=GC.purchases; }
+    else { if(CC.convmsg) CC.leads=CC.convmsg; if(DC.convmsg) DC.leads=DC.convmsg; if(GC.convmsg) GC.leads=GC.convmsg; }
+    console.log('[Bursty] Meta · colunas detectadas →', {leads:CC.leads, purchases:CC.purchases, revenue:CC.revenue, convmsg:CC.convmsg, spend:CC.spend, clicks:CC.clicks});
     console.log('[Bursty] Meta · cabeçalhos da aba de CAMPANHAS →', CAMP.length?Object.keys(CAMP[0]):[]);
     console.log('[Bursty] Meta · demográfico (gênero/idade/leads) →', {gender:DC.gender, age:DC.age, leads:DC.leads, convmsg:DC.convmsg});
     console.log('[Bursty] Meta · cabeçalhos da aba DEMOGRÁFICA →', DEMO.length?Object.keys(DEMO[0]):[]);
@@ -1190,7 +1200,7 @@ async function load(){ setStatus('load'); const app=document.getElementById('app
 /* ========================= MÓDULO GOOGLE ADS ============================ */
 let GOOG={loaded:false,camp:[],cCols:{},kw:[],kCols:{},age:[],aCols:{},geo:[],gCols:{}};
 let GDATE_FROM=null,GDATE_TO=null,GMIND=null,GMAXD=null;
-const GKEYS=['date','campaign','keyword','spend','leads','clicks','impr','reach','lpv','cpc','gender','age','cplDirect'];
+const GKEYS=['date','campaign','keyword','spend','leads','clicks','impr','reach','lpv','cpc','revenue','gender','age','cplDirect'];
 function gFilter(rows){ const dc=GOOG.cCols.date; if(!dc||(!GDATE_FROM&&!GDATE_TO)) return rows;
   return rows.filter(r=>{const d=parseDate(r[dc]); if(!d) return false; if(GDATE_FROM&&d<GDATE_FROM) return false; if(GDATE_TO&&d>GDATE_TO) return false; return true;}); }
 function setupGoogleDates(){ const dc=GOOG.cCols.date; const fromEl=document.getElementById('gFrom'),toEl=document.getElementById('gTo'),info=document.getElementById('gDateInfo');
@@ -1222,11 +1232,16 @@ function gAgg(rows,cols,keyCol){ const m=new Map();
 function renderGoogle(){ const host=document.getElementById('app-google'); const c=GOOG.cCols;
   if(!GOOG.camp.length){ host.innerHTML=`<div class="card"><div class="empty">A base de <b>Google Ads</b> de <b>${CONFIG.CLIENT_NAME}</b> não está configurada ou não retornou dados.</div></div>`; return; }
   const rows=gFilter(GOOG.camp);
-  const T={spend:sumField(rows,c.spend),clicks:sumField(rows,c.clicks),impr:sumField(rows,c.impr),leads:sumField(rows,c.leads),reach:sumField(rows,c.reach)};
+  const T={spend:sumField(rows,c.spend),clicks:sumField(rows,c.clicks),impr:sumField(rows,c.impr),leads:sumField(rows,c.leads),reach:sumField(rows,c.reach),revenue:sumField(rows,c.revenue)};
   const cpl=(T.spend!=null&&T.leads)?T.spend/T.leads:null, ctr=(T.clicks!=null&&T.impr)?T.clicks/T.impr*100:null, cpc=(T.spend!=null&&T.clicks)?T.spend/T.clicks:null;
+  const groas=(T.spend&&T.revenue!=null)?T.revenue/T.spend:null, gcpa=(T.spend!=null&&T.leads)?T.spend/T.leads:null, gaov=(T.leads&&T.revenue!=null)?T.revenue/T.leads:null;
   const GK={
     spend:{l:'Investimento',v:fmtBRL(T.spend),h:'total investido no período',i:'money',ok:c.spend},
-    leads:{l:'Leads',v:fmtInt(T.leads),h:'conversões / resultados (Google)',i:'target',ok:c.leads},
+    leads:{l:'Compras',v:fmtInt(T.leads),h:'conversões / compras (Google)',i:'target',ok:c.leads},
+    revenue:{l:'Receita Gerada',v:fmtBRL(T.revenue),h:'valor das conversões (Google)',i:'money',ok:(c.revenue&&T.revenue!=null)},
+    roas:{l:'ROAS',v:(groas!=null?groas.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'x':'—'),h:'receita ÷ investimento',i:'convert',ok:(groas!=null)},
+    cpa:{l:'CPA (Custo por Compra)',v:fmtBRL(gcpa),h:'investimento ÷ compras',i:'tag',ok:(gcpa!=null)},
+    aov:{l:'Ticket Médio',v:fmtBRL(gaov),h:'receita ÷ compras',i:'tag',ok:(gaov!=null)},
     cpl:{l:'Custo por Lead',v:fmtBRL(cpl),h:'investimento ÷ leads (conversões)',i:'tag',ok:cpl!=null},
     ctr:{l:'Taxa de Cliques',v:fmtPct(ctr),h:'cliques ÷ visualizações',i:'cursor',ok:ctr!=null},
     cpc:{l:'Custo por Clique',v:fmtBRL(cpc),h:'valor médio por clique',i:'click',ok:cpc!=null},
@@ -1234,7 +1249,7 @@ function renderGoogle(){ const host=document.getElementById('app-google'); const
     clicks:{l:'Cliques',v:fmtInt(T.clicks),h:'pessoas que clicaram',i:'cursor',ok:c.clicks},
   };
   const gprof=(typeof clientProfile==='function'?clientProfile(CURRENT_CLIENT).focus:'geral');
-  const gord=(gprof==='branding')?['impr','clicks','ctr','cpc','spend','leads']:['leads','cpl','spend','clicks','ctr','cpc','impr'];
+  const gord=(gprof==='branding')?['impr','clicks','ctr','cpc','spend','leads']:(gprof==='ecommerce')?['revenue','roas','leads','cpa','aov','spend','clicks','ctr']:['leads','cpl','spend','clicks','ctr','cpc','impr'];
   let k=''; gord.forEach(x=>{ const d=GK[x]; if(d&&d.ok) k+=kpiCard(d.l,d.v,d.h,d.i); });
   const GI='<span class="pfico" style="width:22px;height:22px"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2.6 17.4 8.2 7.7a2.6 2.6 0 0 1 4.5 2.6l-5.6 9.7a2.6 2.6 0 0 1-4.5-2.6z" fill="#FBBC04"/><path d="M15.8 4.6l5.6 9.7a2.6 2.6 0 1 1-4.5 2.6l-5.6-9.7a2.6 2.6 0 0 1 4.5-2.6z" fill="#4285F4"/><circle cx="4.85" cy="18.7" r="2.6" fill="#34A853"/></svg></span>';
   const byCamp=c.campaign?gAgg(rows,c,c.campaign):[];
@@ -1530,7 +1545,7 @@ document.body.addEventListener('click',e=>{ const nav=e.target.closest('.nav-org
 /* ============================ ASSISTENTE IA ============================== */
 const AI_SUGS=[['target','Qual campanha teve mais leads?'],['tag','Qual o menor CPL?'],['users','Qual o público mais eficiente?'],['cursor','Qual criativo teve o melhor CTR?'],['convert','Onde está o maior gargalo do funil?'],['money','Resumo geral da conta'],['image','Qual a melhor publicação do Instagram?'],['ops','Qual o status das atividades no Jira?']];
 function aiHasData(){ const fab=document.getElementById('aiFab'); if(!fab) return; fab.classList.remove('hidden'); /* botão da IA permanece sempre visível */ }
-function clientProfile(id){ if(id==='sod') return {focus:'branding'}; if(id==='sercon'||id==='henrivera'||id==='arfirst'||id==='lity') return {focus:'leads'}; return {focus:'geral'}; }
+function clientProfile(id){ if(id==='sod') return {focus:'branding'}; if(id==='lity') return {focus:'ecommerce'}; if(id==='sercon'||id==='henrivera'||id==='arfirst') return {focus:'leads'}; return {focus:'geral'}; }
 const AI_NORESP='No momento, não tenho a resposta para isso. Posso ajudar com campanhas, criativos, público, funil, Instagram e Operações (Jira) do cliente selecionado.';
 function aiJiraAnswer(n){ if(typeof normalizeJira==='function'&&(typeof JIRA==='undefined'||!JIRA.length)) normalizeJira();
   const nm=(CLIENTS[CURRENT_CLIENT]||{}).name; const rows=(typeof JIRA!=='undefined'?JIRA:[]).filter(j=>j.client===nm);
@@ -1962,7 +1977,7 @@ function downloadReportPDF(){ const nm=(CLIENTS[CURRENT_CLIENT]||{}).name||'Clie
   }catch(e){ console.error(e); w.document.write(html); w.document.close(); } }
 
 /* ============================ INICIALIZAÇÃO ============================= */
-console.log('%c[Bursty] Henrivera Mármores · dashboard dedicado | Lity Global · dashboard dedicado (v1)','color:#1627fd;font-weight:700');
+console.log('%c[Bursty] Henrivera Mármores · dashboard dedicado | Lity Global · e-commerce (receita/ROAS/compras) v2','color:#1627fd;font-weight:700');
 aiInit(); setOpsClientToCurrent();
 /* 1) Interface montada IMEDIATAMENTE (independe da rede): ambiente, menu, seletor */
 PLATFORMS={google:true,meta:true,org:true};       // mostra as abas até sabermos o que existe
