@@ -1,0 +1,12 @@
+{
+  "name": "bursty-lity-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dashboard de performance do Lity Global (Bursty). Arquivo unico servido por Node.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
